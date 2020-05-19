@@ -1,0 +1,6 @@
+nbody-col
+NBodyInput/
+*.gif
+*.ppm
+out/
+*.exe
