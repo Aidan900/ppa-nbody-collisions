@@ -4,3 +4,5 @@ NBodyInput/
 *.ppm
 out/
 *.exe
+nbodyCuda.exp
+nbodyCuda.lib
