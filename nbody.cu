@@ -55,6 +55,20 @@ typedef struct rgb_data{
 	int b;
 } RGB;
 
+struct ConfigData{
+	int particleCount;
+	int totalIterations;
+	int save_Image_Every_Xth_Iteration;
+	float timestep;
+	float minRandBodyMass;
+	float maxRandBodyMass;
+	int imgWidth;
+	int imgHeight;
+	int fieldWidth;
+	int fieldHeight;
+	std::string imagePath;
+};
+
 /*
  * Particle structure
  */
@@ -346,12 +360,187 @@ void SaveIterationImage(const std::string &filename, const std::vector<Particle>
 	// 	std::cerr << "Error writing image to file:" << filename << std::endl <<"Ensure the the folder exists" <<std::endl;
 }
 
+/*int particleCount;
+int totalIterations;
+int save_Image_Every_Xth_Iteration;
+float timestep;
+float minRandBodyMass;
+float maxRandBodyMass;
+int imgWidth;
+int imgHeight;
+int fieldWidth;
+int fieldHeight;
+std::string imagePath;*/
+
+ConfigData parseConfigFile(const std::string& filepath)
+{
+	ConfigData conf;
+	std::ifstream configFileStream(filepath);
+	if(!configFileStream.is_open())
+	{
+		std::cout<<"Error opening config file! Exiting..." << std::endl;
+		exit(1);
+	}
+
+	std::string line;
+	std::string variableName; //name of the variable the line in the config will modify
+	size_t delimPos;
+	while(std::getline(configFileStream, line))
+	{
+		delimPos = line.find("=");
+		variableName = line.substr(0, delimPos);
+		if(variableName.compare("particleCount") == 0)
+		{
+			int particleCount;
+			try{
+				particleCount = std::stoi(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "particleCount invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found particleCount variable " << particleCount << std::endl;
+			conf.particleCount = particleCount;
+		}
+		else if(variableName.compare("totalIterations") == 0)
+		{
+			int iterations;
+			try{
+				iterations = std::stoi(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "totalIterations invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found totalIterations variable " << iterations << std::endl;
+			conf.totalIterations = iterations;
+		}
+		else if(variableName.compare("save_Image_Every_Xth_Iteration") == 0)
+		{
+			int saveAt;
+			try{
+				saveAt = std::stoi(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "save_Image_Every_Xth_Iteration invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found save_Image_Every_Xth_Iteration variable " << saveAt << std::endl;
+			conf.save_Image_Every_Xth_Iteration = saveAt;
+		}
+		else if(variableName.compare("timestep") == 0)
+		{
+			float timestep;
+			try{
+				timestep = std::stof(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "timestep invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found timestep variable " << timestep << std::endl;
+			conf.timestep = timestep;
+		}
+		else if(variableName.compare("minRandBodyMass") == 0)
+		{
+			float minRandBodyMass;
+			try{
+				minRandBodyMass = std::stof(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "minRandBodyMass invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found minRandBodymass variable " << minRandBodyMass << std::endl;
+			conf.minRandBodyMass = minRandBodyMass;
+		}
+		else if(variableName.compare("maxRandBodyMass") == 0)
+		{
+			float maxRandBodyMass;
+			try{
+				maxRandBodyMass = std::stof(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "maxRandBodyMass invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found maxRandBodyMass variable " << maxRandBodyMass << std::endl;
+			conf.maxRandBodyMass = maxRandBodyMass;
+		}
+		else if(variableName.compare("imgWidth") == 0)
+		{
+			int imgWidth;
+			try{
+				imgWidth = std::stoi(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "imgWidth invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found imgWidth variable " << imgWidth << std::endl;
+			conf.imgWidth = imgWidth;
+		}
+		else if(variableName.compare("imgHeight") == 0)
+		{
+			int imgHeight;
+			try{
+				imgHeight = std::stoi(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "imgHeight invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found imgHeight variable " << imgHeight << std::endl;
+			conf.imgHeight = imgHeight;
+		}
+		else if(variableName.compare("fieldWidth") == 0)
+		{
+			int fieldWidth;
+			try{
+				fieldWidth = std::stoi(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "fieldWidth invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found fieldWidth variable " << fieldWidth << std::endl;
+			conf.fieldWidth = fieldWidth;
+		}
+		else if(variableName.compare("fieldHeight") == 0)
+		{
+			int fieldHeight;
+			try{
+				fieldHeight = std::stoi(line.substr(delimPos+1));
+			}catch(std::exception const &e)
+			{
+				std::cout << "fieldHeight invalid value: "<< e.what() <<std::endl;
+				exit(1);
+			}
+			std::cout<<"Found fieldHeight variable " << fieldHeight << std::endl;
+			conf.fieldHeight = fieldHeight;
+		}
+		else if(variableName.compare("imagePath") == 0)
+		{
+			std::string imagePath = line.substr(delimPos+1);
+			std::cout<<"Found fieldHeight variable: " << imagePath << std::endl;
+			conf.imagePath = imagePath;
+		}
+		else{
+			std::cout << "Invalid variable: " << variableName << std::endl;
+ 		}
+	}
+	return conf;
+}
+
 int main(int argc, char **argv)
 {
-	if(argc < 5){
-		std::cerr<<"Incorrect arguments. <particle count> <interations> <save-image-every-x-iteration> <image-path>"<<std::endl;
+	/*if(argc < 5){
+		std::cerr<<"Incorrect arguments. <particle count> <iterations> <save-image-every-x-iteration> <image-path>"<<std::endl;
 		exit(0);
-	}
+	}*/
+
+	ConfigData config = parseConfigFile("nbodyConfig.txt");
+	exit(0);
 
 	const int particleCount = std::stoi(argv[1]);
 	const int maxIteration = std::stoi(argv[2]);;

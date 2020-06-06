@@ -6,3 +6,4 @@ out/
 *.exe
 nbodyCuda.exp
 nbodyCuda.lib
+/Debug/
