@@ -7,3 +7,4 @@ out/
 nbodyCuda.exp
 nbodyCuda.lib
 /Debug/
+/Release/
