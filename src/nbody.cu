@@ -36,14 +36,14 @@
 //#define GRAV_CONSTANT = 6.67408e-11f;
 
 /*
- * Constant definitions for field dimensions, and particle masses
+ * Definitions for field dimensions
  */
-const int fieldWidth = 2000;
-const int doubleFieldWidth = fieldWidth << 1;
+int fieldWidth;
+int doubleFieldWidth;// = fieldWidth << 1;
 //const int fieldHalfWidth = fieldWidth >> 1;
-const int fieldHeight = 2000;
+int fieldHeight;// = 2000;
 //const int fieldHalfHeight = fieldHeight >> 1;
-const int doubleFieldHeight = fieldHeight << 1;
+int doubleFieldHeight;// = fieldHeight << 1;
 
 __constant__ __device__ float GRAV_CONSTANT = 6.67408e-11f;
 
@@ -88,7 +88,7 @@ struct Particle {
  * Compute forces of particles exerted on one another
  */
 __global__ void ComputeForces(Particle* bodies, float* updated_masses,
-		int numBodies, float timestep) {
+		int numBodies, float timestep, int fieldWidth, int fieldHeight) {
 	Vec2f direction, force, acceleration;
 	float distance;
 	int j = threadIdx.x;
@@ -248,9 +248,13 @@ void saveImageToDisk(const std::string &filename, char* imgData, int imgWidth,
 			outImg << imgData[i];
 		}
 		outImg.close();
-	} else
+	}
+	else
+	{
 		std::cerr << "Error writing image to file:" << filename << std::endl
 				<< "Ensure the the folder exists" << std::endl;
+		exit(1);
+	}
 }
 
 void SaveIterationImage(const std::string &filename,
@@ -369,16 +373,19 @@ int main(int argc, char **argv) {
 	std::cout<<"Running simulation with the following settings:\n";
 	ConfigData config = parseConfigFile("nbodyConfig.txt");
 	std::cout<<"=====================\n";
-	exit(0);
+	//exit(0);
 
 	const int particleCount = config.particleCount;//std::stoi(argv[1]);
 	const int maxIteration = config.totalIterations;//std::stoi(argv[2]);
-	;
 	const int imageEveryIteration = config.save_Image_Every_Xth_Iteration;//std::stoi(argv[3]);
 	const float timestep = config.timestep;
-
 	const float minBodyMass = config.minRandBodyMass;
 	const float maxBodyMass = config.maxRandBodyMass;
+	fieldWidth = config.fieldWidth;
+	doubleFieldWidth = fieldWidth << 1;
+	fieldHeight = config.fieldHeight;
+	doubleFieldHeight = fieldHeight << 1;
+
 
 	std::stringstream fileOutput;
 	std::stringstream imgOut;
@@ -437,8 +444,8 @@ int main(int argc, char **argv) {
 
 	// bodies.push_back(Particle(Vec2f(0.f,0.f), 50));
 	// updatedMasses.push_back(50.f);
-	const int imgWidth = 1024;
-	const int imgHeight = 900;
+	const int imgWidth = config.imgWidth;
+	const int imgHeight = config.imgHeight;
 	size_t imageSize = imgWidth * imgHeight;
 
 	float* d_updatedMasses;
@@ -459,35 +466,26 @@ int main(int argc, char **argv) {
 				//printf("Mass: %.4f \nRadius: %.4f\n", body.Mass, body.Radius);
 			}
 
-			// if (cudaDeviceSynchronize() != cudaSuccess) {
-			//     fprintf(stderr, "(1) Cuda call failed on iteration %d\n", iteration);
-			// }
-
+			//Copying data over to device
 			cudaMemcpy(d_bodies, bodies.data(),
 					bodies.size() * sizeof(Particle), cudaMemcpyHostToDevice);
 			cudaMemcpy(d_updatedMasses, updatedMasses.data(),
 					updatedMasses.size() * sizeof(float),
 					cudaMemcpyHostToDevice);
-			ComputeForces<<<1, bodies.size()>>>(d_bodies, d_updatedMasses,
-					bodies.size(), timestep);
-			CUDA_SYNC_CHECK()
-			;
-			MoveBodies<<<1, bodies.size()>>>(d_bodies, d_updatedMasses,
-					timestep);
-			CUDA_SYNC_CHECK()
-			;
-			cudaMemcpy(bodies.data(), d_bodies,
-					bodies.size() * sizeof(Particle), cudaMemcpyDeviceToHost);
-			cudaMemcpy(updatedMasses.data(), d_updatedMasses,
-					updatedMasses.size() * sizeof(float),
-					cudaMemcpyDeviceToHost);
+
+			//Calculating movement
+			ComputeForces<<<1, bodies.size()>>>(d_bodies, d_updatedMasses, bodies.size(), timestep, fieldWidth, fieldHeight);
+			CUDA_SYNC_CHECK();
+			MoveBodies<<<1, bodies.size()>>>(d_bodies, d_updatedMasses, timestep);
+			CUDA_SYNC_CHECK();
+
+			//Copying data back to host
+			cudaMemcpy(bodies.data(), d_bodies,bodies.size() * sizeof(Particle), cudaMemcpyDeviceToHost);
+			cudaMemcpy(updatedMasses.data(), d_updatedMasses, updatedMasses.size() * sizeof(float), cudaMemcpyDeviceToHost);
 
 			for (size_t i = 0; i < bodies.size(); ++i) {
-				//p_bodies[j].Mass = updated_masses[j];
 				if (updatedMasses[i] != 0.f) {
 					newBodies.push_back(bodies[i]);
-					//printf("UPDATED MASS (p%d): %.2f\n", (int)j, updated_masses[j]);
-					// p_bodies.at(j).Position += p_bodies.at(j).Velocity * p_deltaT;
 				}
 			}
 
@@ -507,7 +505,7 @@ int main(int argc, char **argv) {
 				cudaMemcpy(imgData, d_imgData, imageSize,
 						cudaMemcpyDeviceToHost);
 				imgOut.str(std::string());
-				imgOut << argv[4] << "/iteration_" << iteration << ".ppm";
+				imgOut << config.imagePath << "/iteration_" << iteration << ".ppm";
 				printf("Saving Iteration %d\n", iteration);
 				saveImageToDisk(imgOut.str(), imgData, imgWidth, imgHeight);
 
