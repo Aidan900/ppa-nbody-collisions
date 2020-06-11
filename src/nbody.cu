@@ -91,7 +91,7 @@ __device__ int deviceNumBodies;
 /*
  * Compute forces of particles exerted on one another
  */
-__global__ void ComputeForces(float timestep, int fieldWidth, int fieldHeight)
+__global__ void ComputeForces(Particle* d_bodies, float* updatedMasses, int size, float timestep, int fieldWidth, int fieldHeight)
 {
 	int j = blockIdx.x * blockDim.x + threadIdx.x;
 //	if(j == 0) {
@@ -99,9 +99,9 @@ __global__ void ComputeForces(float timestep, int fieldWidth, int fieldHeight)
 //		//printf("Size: %d\n", deviceNumBodies);
 //	}
 
-	Particle* bodies = deviceBodies;
-	float* updated_masses = deviceUpdatedMasses;//*updated_massesAddr;
-	int numBodies = deviceNumBodies;//*numBodiesAddr;
+	Particle* bodies = d_bodies;//deviceBodies;
+	float* updated_masses = updatedMasses;//deviceUpdatedMasses;//*updated_massesAddr;
+	int numBodies = size;//*numBodiesAddr;
 	Vec2f direction, force, acceleration;
 	float distance;
 	Particle &p1 = bodies[j];
@@ -162,11 +162,11 @@ __global__ void ComputeForces(float timestep, int fieldWidth, int fieldHeight)
  * Update particle positions
  */
 
-__global__ void MoveBodies(float p_deltaT)
+__global__ void MoveBodies(Particle* bodies, float* updatedMasses, float p_deltaT)
 {
 	int j = blockIdx.x * blockDim.x + threadIdx.x;//threadIdx.x;
-	Particle* p_bodies = deviceBodies;//*bodiesAddr;
-	float* updated_masses = deviceUpdatedMasses;
+	Particle* p_bodies = bodies;//deviceBodies;//*bodiesAddr;
+	float* updated_masses = updatedMasses;//deviceUpdatedMasses;
 	//p_bodies[j].Mass = updated_masses[j];
 	if (updated_masses[j] != 0.f) {
 		//printf("UPDATED MASS (p%d): %.2f\n", (int)j, updated_masses[j]);
@@ -175,10 +175,10 @@ __global__ void MoveBodies(float p_deltaT)
 	}
 }
 
-__global__ void generateImage(char* imgData, int width,
+__global__ void generateImage(Particle* d_bodies, char* imgData, int width,
 		int height, int fieldWidth, int fieldHeight)
 {
-	Particle* bodies = deviceBodies;
+	Particle* bodies = d_bodies;//deviceBodies;
 	const int img_width = width;
 	const int img_height = height;
 	const int doubleFieldWidth = fieldWidth << 1;
@@ -558,7 +558,7 @@ int main(int argc, char **argv) {
 	size_t imageSize = imgWidth * imgHeight;
 
 	//printf("SIZE: %d\n", sizeof(Particle));
-	//float* d_updatedMasses;
+	float* d_updatedMasses;
 	Particle* d_bodies;
 	char* imgData;
 	char* d_imgData;
@@ -573,32 +573,28 @@ int main(int argc, char **argv) {
 	//cudaMalloc((void**) &newUpdatedMassesAddress, sizeof(float*));
 	//cudaMalloc((void**) &numBodiesAddress, sizeof(int));
 
-	cudaMalloc((void **) &d_bodies, bodies.size() * sizeof(Particle));
-	cudaMemcpy(d_bodies, bodies.data(), bodies.size() * sizeof(Particle), cudaMemcpyHostToDevice);
-	//Setting up variable on device side to reduce memcopies to host
-	//printf("Particle** : %p\n", newBodiesAddress);
-	//printf("Particle* : %p\n", d_bodies);
-	//printf("Particle** : %p\n", newBodiesAddress);
-	setupDeviceVariables<<<1,1>>>(d_bodies, bodies.size());
-	CUDA_SYNC_CHECK();
+//	cudaMalloc((void **) &d_bodies, bodies.size() * sizeof(Particle));
+//	cudaMemcpy(d_bodies, bodies.data(), bodies.size() * sizeof(Particle), cudaMemcpyHostToDevice);
+//	setupDeviceVariables<<<1,1>>>(d_bodies, bodies.size());
+//	CUDA_SYNC_CHECK();
  	//printf("passed\n");
 	for (int run = 0; run < MAX_RUNS; ++run) {
 		for (int iteration = 0; iteration < maxIteration; ++iteration)
 		{
 			//printf("Iteration: %d\n", iteration);
-			//std::vector<Particle> newBodies;
-			//std::vector<float> updatedMasses(bodies.size());
+			std::vector<Particle> newBodies;
+			std::vector<float> updatedMasses(bodies.size());
 
-			//cudaMalloc((void **) &d_bodies, bodies.size() * sizeof(Particle));
-//			cudaMalloc((void **) &d_updatedMasses,
-//					bodies.size() * sizeof(float));
+			cudaMalloc((void **) &d_bodies, bodies.size() * sizeof(Particle));
+			cudaMalloc((void **) &d_updatedMasses,
+					bodies.size() * sizeof(float));
 
 
 
-//			for (int i = 0; i < bodies.size(); ++i) {
-//				updatedMasses[i] = bodies[i].Mass;
-//				//printf("Mass: %.4f \nRadius: %.4f\n", body.Mass, body.Radius);
-//			}
+			for (int i = 0; i < bodies.size(); ++i) {
+				updatedMasses[i] = bodies[i].Mass;
+				//printf("Mass: %.4f \nRadius: %.4f\n", body.Mass, body.Radius);
+			}
 
 
 
@@ -606,34 +602,34 @@ int main(int argc, char **argv) {
 			blocks = bodies.size() < threadsPerBlock ? 1 : bodies.size() / threadsPerBlock;
 
 			//Copying data over to device
-//			cudaMemcpy(d_bodies, bodies.data(),
-//					bodies.size() * sizeof(Particle), cudaMemcpyHostToDevice);
-//			cudaMemcpy(d_updatedMasses, updatedMasses.data(),
-//					updatedMasses.size() * sizeof(float),
-//					cudaMemcpyHostToDevice);
+			cudaMemcpy(d_bodies, bodies.data(),
+					bodies.size() * sizeof(Particle), cudaMemcpyHostToDevice);
+			cudaMemcpy(d_updatedMasses, updatedMasses.data(),
+					updatedMasses.size() * sizeof(float),
+					cudaMemcpyHostToDevice);
 
-			resetUpdatedMasses<<<1,1>>>();
-			CUDA_SYNC_CHECK();
+			//resetUpdatedMasses<<<1,1>>>();
+			//CUDA_SYNC_CHECK();
 			//Calculating movement
 			//printf("Bodies: %ld\n", bodies.size());
 			//printf("Blocks: %d\nThreads/Block: %d\nTotal threads: %d\n", blocks, threadsPerBlock, blocks * threadsPerBlock);
-			ComputeForces<<<blocks, threadsPerBlock>>>(timestep, fieldWidth, fieldHeight);
+			ComputeForces<<<blocks, threadsPerBlock>>>(d_bodies, d_updatedMasses, bodies.size(),timestep, fieldWidth, fieldHeight);
 			CUDA_SYNC_CHECK();
-			MoveBodies<<<blocks, threadsPerBlock>>>(timestep);
+			MoveBodies<<<blocks, threadsPerBlock>>>(d_bodies, d_updatedMasses, timestep);
 			CUDA_SYNC_CHECK();
 
-			DeleteMassesAndUpdateBodies<<<1,1>>>();
+			//DeleteMassesAndUpdateBodies<<<1,1>>>();
 
 			//Copying data back to host
-			//cudaMemcpy(bodies.data(), d_bodies,bodies.size() * sizeof(Particle), cudaMemcpyDeviceToHost);
-			//cudaMemcpy(updatedMasses.data(), d_updatedMasses, updatedMasses.size() * sizeof(float), cudaMemcpyDeviceToHost);
+			cudaMemcpy(bodies.data(), d_bodies,bodies.size() * sizeof(Particle), cudaMemcpyDeviceToHost);
+			cudaMemcpy(updatedMasses.data(), d_updatedMasses, updatedMasses.size() * sizeof(float), cudaMemcpyDeviceToHost);
 
-//			for (size_t i = 0; i < bodies.size(); ++i) {
-//				if (updatedMasses[i] != 0.f) {
-//					newBodies.push_back(bodies[i]);
-//				}
-//			}
-//			bodies = newBodies;
+			for (size_t i = 0; i < bodies.size(); ++i) {
+				if (updatedMasses[i] != 0.f) {
+					newBodies.push_back(bodies[i]);
+				}
+			}
+			bodies = newBodies;
 
 			if (iteration % imageEveryIteration == 0) {
 				imgData = new char[imageSize];
@@ -643,8 +639,7 @@ int main(int argc, char **argv) {
 				cudaMalloc((void**) &d_imgData, imageSize);
 				cudaMemcpy(d_imgData, imgData, imageSize,
 						cudaMemcpyHostToDevice);
-				generateImage<<<blocks, threadsPerBlock>>>(d_imgData,
-						imgWidth, imgHeight, fieldWidth, fieldHeight);
+				generateImage<<<blocks, threadsPerBlock>>>(d_bodies, d_imgData, imgWidth, imgHeight, fieldWidth, fieldHeight);
 				CUDA_SYNC_CHECK()
 				;
 				cudaMemcpy(imgData, d_imgData, imageSize,
@@ -657,8 +652,8 @@ int main(int argc, char **argv) {
 				cudaFree(d_imgData);
 				delete[] imgData;
 			}
-		//	cudaFree(d_bodies);
-			//cudaFree(d_updatedMasses);
+			cudaFree(d_bodies);
+			cudaFree(d_updatedMasses);
 		}
 	}
 	return 0;
