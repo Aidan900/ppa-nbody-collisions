@@ -52,7 +52,7 @@ __constant__ __device__ float GRAV_CONSTANT = 6.67408e-11f;
 /*
  * Particle structure
  */
-struct __align__(128) Particle {
+struct __align__(32)  Particle {
 	Vec2f Position;
 	Vec2f Velocity;
 	float Mass;
@@ -496,6 +496,9 @@ int main(int argc, char **argv) {
 	 std::cerr<<"Incorrect arguments. <particle count> <iterations> <save-image-every-x-iteration> <image-path>"<<std::endl;
 	 exit(0);
 	 }*/
+
+	//printf("Size: %d\n", sizeof(Particle));
+	//exit(0);
 
 	std::cout<<"Running simulation with the following settings:\n";
 	ConfigData config = parseConfigFile("nbodyConfig.txt");
