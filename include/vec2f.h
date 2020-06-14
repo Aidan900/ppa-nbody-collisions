@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <assert.h>
+//#include <cuda.h>
 
 #ifdef __CUDACC__
 #define CUDA_CALLABLE_MEMBER __host__ __device__

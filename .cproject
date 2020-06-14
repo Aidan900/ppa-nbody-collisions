@@ -30,6 +30,7 @@
 								<option id="nvcc.compiler.include.paths.578519408" name="Include paths (-I)" superClass="nvcc.compiler.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/acau0033-ppa2-nbodycollision/include}&quot;"/>
 								</option>
+								<option id="nvcc.compiler.option.lineinfo.985510023" name="Generate line-number information for device code (-lineinfo)" superClass="nvcc.compiler.option.lineinfo" value="false" valueType="boolean"/>
 								<inputType id="nvcc.compiler.input.cu.483618275" superClass="nvcc.compiler.input.cu"/>
 								<inputType id="nvcc.compiler.input.cpp.43517615" superClass="nvcc.compiler.input.cpp"/>
 								<inputType id="nvcc.compiler.input.c.167606477" superClass="nvcc.compiler.input.c"/>
@@ -84,9 +85,10 @@
 								<option id="nvcc.compiler.option.level.2019951265" name="Generate host debug information (-g)" superClass="nvcc.compiler.option.level"/>
 								<option defaultValue="nvcc.compiler.optimization.level.most" id="nvcc.compiler.optimization.level.583174868" name="Optimization Level" superClass="nvcc.compiler.optimization.level" valueType="enumerated"/>
 								<option id="nvcc.compiler.pic.1425371661" name="Position Independent Code (-fPIC)" superClass="nvcc.compiler.pic"/>
-								<option id="nvcc.compiler.include.paths.1388696276" superClass="nvcc.compiler.include.paths" valueType="includePath">
+								<option id="nvcc.compiler.include.paths.1388696276" name="Include paths (-I)" superClass="nvcc.compiler.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/acau0033-ppa2-nbodycollision/include}&quot;"/>
 								</option>
+								<option id="nvcc.compiler.option.lineinfo.2069296105" name="Generate line-number information for device code (-lineinfo)" superClass="nvcc.compiler.option.lineinfo" value="true" valueType="boolean"/>
 								<inputType id="nvcc.compiler.input.cu.1207789675" superClass="nvcc.compiler.input.cu"/>
 								<inputType id="nvcc.compiler.input.cpp.1969977947" superClass="nvcc.compiler.input.cpp"/>
 								<inputType id="nvcc.compiler.input.c.444654870" superClass="nvcc.compiler.input.c"/>
@@ -143,4 +145,5 @@
 			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="com.nvidia.cuda.ide.build.NVCCPerProjectProfile"/>
 		</scannerConfigBuildInfo>
 	</storageModule>
+	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
 </cproject>
