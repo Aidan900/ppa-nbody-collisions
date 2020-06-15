@@ -89,6 +89,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/acau0033-ppa2-nbodycollision/include}&quot;"/>
 								</option>
 								<option id="nvcc.compiler.option.lineinfo.2069296105" name="Generate line-number information for device code (-lineinfo)" superClass="nvcc.compiler.option.lineinfo" value="true" valueType="boolean"/>
+								<option id="nvcc.compiler.maxregcount.1846850456" name="Maximum number of registers (-maxrregcount)" superClass="nvcc.compiler.maxregcount" value="" valueType="string"/>
 								<inputType id="nvcc.compiler.input.cu.1207789675" superClass="nvcc.compiler.input.cu"/>
 								<inputType id="nvcc.compiler.input.cpp.1969977947" superClass="nvcc.compiler.input.cpp"/>
 								<inputType id="nvcc.compiler.input.c.444654870" superClass="nvcc.compiler.input.c"/>
