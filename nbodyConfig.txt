@@ -1,4 +1,4 @@
-particleCount=8192
+particleCount=16384
 totalIterations=100
 save_Image_Every_Xth_Iteration=20
 timestep=0.7f

@@ -10,7 +10,7 @@
 #define CUDA_CALLABLE_MEMBER
 #endif 
 
-class Vec2f
+class /*__align__(16)*/ Vec2f
 {
 public:
 	union
