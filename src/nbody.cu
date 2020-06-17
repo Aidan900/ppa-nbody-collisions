@@ -319,7 +319,7 @@ __global__ void /*__launch_bounds__(THREADS_PER_BLOCK, 2)*/ ComputeForces(void* 
 				globalThreadIdx, updatedBodyMass, updatedBodyRadius,
 				blockThreadsVelocities[threadIdx.x].X, blockThreadsVelocities[threadIdx.x].Y,
 				shrdUpdatedVelocities[threadIdx.x].X, shrdUpdatedVelocities[threadIdx.x].Y);
-		updatedVelocities[globalThreadIdx] = blockThreadsVelocities[threadIdx.x] + shrdUpdatedVelocities[threadIdx.x];
+		velocities[globalThreadIdx] = blockThreadsVelocities[threadIdx.x] + shrdUpdatedVelocities[threadIdx.x];
 	}
 	/*printf("Mass (p%d) : %.5f\n", (int)j, p1.Mass);
 	 printf("Mass (p%d) : %.5f\n", (int)k, p2.Mass);
@@ -336,18 +336,22 @@ __global__ void MoveBodies(void* bodyData, float* updatedMasses, Vec2f* updatedV
 		int numBodies, float p_deltaT)
 {
 	int j = blockIdx.x * blockDim.x + threadIdx.x;
-	Vec2f* positions = (Vec2f*) bodyData;
-	Vec2f* velocities = (Vec2f*) &positions[numBodies];
-	float* masses = (float*) &velocities[numBodies];
-	float* radii = (float*) &masses[numBodies];
-	//Particle* p_bodies = bodies;//deviceBodies;//*bodiesAddr;
-	float* updated_masses = updatedMasses;//deviceUpdatedMasses;
-	if (updated_masses[j] != 0.f) {
-		//printf("UPDATED MASS (p%d): %.2f\n", (int)j, updated_masses[j]);
-		positions[j] += updatedVelocities[j] * p_deltaT;//p_bodies[j].Velocity * p_deltaT;
-		masses[j] = updated_masses[j];
-		radii[j] = updatedRadii[j];
+	if ( j < numBodies)
+	{
+		Vec2f* positions = (Vec2f*) bodyData;
+		Vec2f* velocities = (Vec2f*) &positions[numBodies];
+		float* masses = (float*) &velocities[numBodies];
+		float* radii = (float*) &masses[numBodies];
+		//Particle* p_bodies = bodies;//deviceBodies;//*bodiesAddr;
+		float* updated_masses = updatedMasses;//deviceUpdatedMasses;
+		if (updated_masses[j] != 0.f) {
+			printf("UPDATED MASS [%d]: %.2f\n", (int)j, updated_masses[j]);
+			positions[j] += velocities[j] * p_deltaT;//p_bodies[j].Velocity * p_deltaT;
+			//velocities[j] = updatedVelocities[j];
+			masses[j] = updated_masses[j];
+			radii[j] = updatedRadii[j];
 
+		}
 	}
 }
 
@@ -448,7 +452,7 @@ int main(int argc, char **argv) {
 	std::cout<<"=====================\n";
 	//exit(0);
 
-	const int particleCount = 3;//config.particleCount;//std::stoi(argv[1]);
+	const int particleCount = 2;//config.particleCount;//std::stoi(argv[1]);
 	const int maxIteration = config.totalIterations;//std::stoi(argv[2]);
 	const int imageEveryIteration = config.save_Image_Every_Xth_Iteration;//std::stoi(argv[3]);
 	const float timestep = config.timestep;
@@ -511,18 +515,18 @@ int main(int argc, char **argv) {
 //		 //bodies.push_back(p);
 //		 //updatedMasses.push_back(p.Mass);
 //	}
-	 bData.Positions[0] = Vec2f(-300000, 0);
+	 bData.Positions[0] = Vec2f(-384400, 0);
 	 bData.Positions[1] = Vec2f(0.f, 0.f);
-	 bData.Positions[2] = Vec2f(40000.f, 40000.f);
-	 bData.Velocities[0] = Vec2f(0.f, -3701.491f); //3701.491
+	 //bData.Positions[2] = Vec2f(40000.f, 40000.f);
+	 bData.Velocities[0] = Vec2f(0.f, -37001.491f); //3701.491
 	 bData.Velocities[1] = Vec2f(0.f, 0.f);
-	 bData.Velocities[2] = Vec2f(0.f ,0.f);
+	 //bData.Velocities[2] = Vec2f(0.f ,0.f);
 	 bData.Masses[0] = 7.35e22f;
 	 bData.Masses[1] = 5.97e24f;
-	 bData.Masses[2] = 1.f;
+	// bData.Masses[2] = 1.f;
 	 bData.Radii[0] = 1737.1f;
 	 bData.Radii[1] = 6371.0f;
-	 bData.Radii[2] = 1.f;
+	// bData.Radii[2] = 1.f;
 
 	 //bData.printData();
 
@@ -565,7 +569,7 @@ int main(int argc, char **argv) {
 	for (int run = 0; run < MAX_RUNS; ++run) {
 		for (int iteration = 0; iteration < maxIteration; ++iteration)
 		{
-			//printf("Iteration: %d\n", iteration);
+			printf("Iteration: %d\n", iteration);
 			//std::vector<Particle> newBodies;
 			std::vector<float> updatedMasses(numBodies);
 			std::vector<float> updatedRadii(numBodies);
@@ -669,7 +673,7 @@ int main(int argc, char **argv) {
 			cudaFree(d_updatedMasses);
 			cudaFree(d_updatedRadii);
 			cudaFree(d_updatedVelocities);
-			printf("========================\n");
+			printf("++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 		}
 			cudaDeviceReset();
 	}
