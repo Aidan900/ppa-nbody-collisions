@@ -145,6 +145,19 @@ struct BodiesData
 		d_contiguousData = newData.d_contiguousData;
 		return *this;
 	}
+
+	void printData()
+	{
+		for(int i = 0 ; i < numBodies ; ++i)
+		{
+			printf("Body #%d\n", i);
+			printf("Position: (%.4f, %.4f)\n", Positions[i].X, Positions[i].Y);
+			printf("Velocity: (%.4f, %.4f)\n", Velocities[i].X, Velocities[i].Y);
+			printf("Mass: %.4f\n", Masses[i]);
+			printf("Radius: %.4f\n", Radii[i]);
+			printf("--------------\n");
+		}
+	}
 };
 
 //typedef struct rgb_data {
@@ -153,7 +166,7 @@ struct BodiesData
 //	int b;
 //} RGB;
 
-//Device global variables to prevent copying to host every iteration
+//Device global variables to prevent copying to host every iterationd
 //__device__ Particle* deviceBodies;
 //__device__ float* deviceUpdatedMasses;
 //__device__ int deviceNumBodies;
@@ -162,7 +175,7 @@ __device__ inline bool areParticlesColliding(const Vec2f& p0, const float r0, co
 {
 	Vec2f direction = p1 - p0;
 	float distance = (direction.X * direction.X) + (direction.Y * direction.Y);
-	return distance < (r0 + r1) * (r0 + r1);
+	return distance <= (r0 + r1) * (r0 + r1);
 }
 
 /*
@@ -170,116 +183,144 @@ __device__ inline bool areParticlesColliding(const Vec2f& p0, const float r0, co
  */
 //Particle* d_bodies, float* updatedMasses, Vec2f* updatedVelocities, float* updatedRadii,
 __global__ void /*__launch_bounds__(THREADS_PER_BLOCK, 2)*/ ComputeForces(void* bodyData, float* updatedMasses, Vec2f* updatedVelocities,
-		float* updatedRadii, int bodiesNum, float timestep, int fieldWidth, int fieldHeight)
+		float* updatedRadii, int bodiesNum, float timestep, int fieldWidth, int fieldHeight, int numBlocks)
 {
 	//Particle* bodies = d_bodies;//deviceBodies;
 	int globalThreadIdx = blockIdx.x * blockDim.x + threadIdx.x;
-
-	//Subdividing the contiguous array
-	int numBodies = bodiesNum;
-	Vec2f* positions = (Vec2f*) bodyData;
-	Vec2f* velocities = (Vec2f*) &positions[numBodies];
-	float* masses = (float*) &velocities[numBodies];
-	float* radii = (float*) &masses[numBodies];
-
-	//float* updated_masses = updatedMasses;
-	Vec2f direction, force, acceleration;
-	force = 0.f, acceleration = 0.f;
-	float distance;
-
-	extern __shared__ Vec2f sharedMem[];
-	Vec2f* shrdPositions = (Vec2f* )&sharedMem;
-	float* shrdMasses = (float*) &shrdPositions[THREADS_PER_BLOCK];
-	float* shrdRadii = (float*) &shrdMasses[THREADS_PER_BLOCK];
-
-	Vec2f* blockThreadsPositions =(Vec2f*) &shrdRadii[THREADS_PER_BLOCK];
-	float* blockThreadsMasses = (float*) &blockThreadsPositions[THREADS_PER_BLOCK];
-	float* blockThreadsRadii = (float*) &blockThreadsMasses[THREADS_PER_BLOCK];
-
-	Vec2f* shrdUpdatedVelocities = (Vec2f* ) &blockThreadsRadii[THREADS_PER_BLOCK];
-
-	//Particle &p1 = bodies[j];
-	//Loading data for the body that the current thread is handling
-//	const Vec2f& threadBodyPosition = positions[globalThreadIdx];
-//	const float threadBodyMass = masses[globalThreadIdx] ;
-//	const float threadBodyRadius = radii[globalThreadIdx];
-
-	blockThreadsPositions[threadIdx.x] = positions[globalThreadIdx];
-	blockThreadsMasses[threadIdx.x] = masses[globalThreadIdx] ;
-	blockThreadsRadii[threadIdx.x] = radii[globalThreadIdx];
-
-	float updatedBodyMass = blockThreadsMasses[threadIdx.x];//threadBodyMass;
-	float updatedBodyRadius = blockThreadsRadii[threadIdx.x];
-	int globalBodyIdx;
-	int shIdx;
-	for (int k = 0; k < (int)(numBodies / THREADS_PER_BLOCK); ++k)
+	if(globalThreadIdx < bodiesNum)
 	{
-		//Loading the next p bodies (p = threads per block)
-		globalBodyIdx = (globalThreadIdx + (THREADS_PER_BLOCK * k)) % numBodies;
-		//if(blockIdx.x == 0) printf("threadIdx: %d\nglobalId: %d\n\n", threadIdx.x, globalBodyIdx);
-		shrdPositions[threadIdx.x] = positions[globalBodyIdx];
-		shrdMasses[threadIdx.x] = masses[globalBodyIdx];
-		shrdRadii[threadIdx.x] = radii[globalBodyIdx];
-		__syncthreads();
-		for (int shrdOffset = 0; shrdOffset < THREADS_PER_BLOCK ; ++shrdOffset)
+		//Subdividing the contiguous array
+		int numBodies = bodiesNum;
+		Vec2f* positions = (Vec2f*) bodyData;
+		Vec2f* velocities = (Vec2f*) &positions[numBodies];
+		float* masses = (float*) &velocities[numBodies];
+		float* radii = (float*) &masses[numBodies];
+
+		//float* updated_masses = updatedMasses;
+		Vec2f direction, force, acceleration;
+		force = 0.f, acceleration = 0.f;
+		float distance;
+
+		extern __shared__ Vec2f sharedMem[];
+		Vec2f* shrdPositions = (Vec2f* )&sharedMem;
+		float* shrdMasses = (float*) &shrdPositions[THREADS_PER_BLOCK];
+		float* shrdRadii = (float*) &shrdMasses[THREADS_PER_BLOCK];
+
+		Vec2f* blockThreadsPositions =(Vec2f*) &shrdRadii[THREADS_PER_BLOCK];
+		float* blockThreadsMasses = (float*) &blockThreadsPositions[THREADS_PER_BLOCK];
+		float* blockThreadsRadii = (float*) &blockThreadsMasses[THREADS_PER_BLOCK];
+		Vec2f* blockThreadsVelocities = (Vec2f *) &blockThreadsRadii[THREADS_PER_BLOCK];
+
+		Vec2f* shrdUpdatedVelocities = (Vec2f* ) &blockThreadsVelocities[THREADS_PER_BLOCK];
+
+		//Particle &p1 = bodies[j];
+		//Loading data for the body that the current thread is handling
+	//	const Vec2f& threadBodyPosition = positions[globalThreadIdx];
+	//	const float threadBodyMass = masses[globalThreadIdx] ;
+	//	const float threadBodyRadius = radii[globalThreadIdx];
+
+		blockThreadsPositions[threadIdx.x] = positions[globalThreadIdx];
+		blockThreadsMasses[threadIdx.x] = masses[globalThreadIdx] ;
+		blockThreadsRadii[threadIdx.x] = radii[globalThreadIdx];
+		blockThreadsVelocities[threadIdx.x] = velocities[globalThreadIdx];
+
+		float updatedBodyMass = blockThreadsMasses[threadIdx.x];//threadBodyMass;
+		float updatedBodyRadius = blockThreadsRadii[threadIdx.x];
+		int globalBodyIdx;
+		int shIdx;
+		bool skip = true;
+		int innerLoopLimit;
+		for (int k = 0; k < numBlocks; ++k)
 		{
-			if (globalBodyIdx == globalThreadIdx)
-				continue;
+			//Loading the next p bodies (p = threads per block)
+			globalBodyIdx = (globalThreadIdx + (THREADS_PER_BLOCK * k)) % numBodies;
+			//if(blockIdx.x == 0) printf("threadIdx: %d\nglobalId: %d\n\n", threadIdx.x, globalBodyIdx);
+			shrdPositions[threadIdx.x] = positions[globalBodyIdx];
+			shrdMasses[threadIdx.x] = masses[globalBodyIdx];
+			shrdRadii[threadIdx.x] = radii[globalBodyIdx];
+			__syncthreads();
 
-			//Ensuring threads loop and read every shared location concurrently
-			shIdx = (threadIdx.x + shrdOffset) % THREADS_PER_BLOCK;
+			printf("[%d] Mass: %.3f\nPosition: (%.3f, %.3f)\nRadius: %.3f\n",
+					globalThreadIdx, blockThreadsMasses[threadIdx.x], blockThreadsPositions[threadIdx.x].X, blockThreadsPositions[threadIdx.x].Y, blockThreadsRadii[threadIdx.x]);
 
-//			bool intersect = areParticlesColliding(threadBodyPosition, threadBodyRadius,
-//					shrdPositions[shIdx], shrdRadii[shIdx]);
-
-			bool intersect = areParticlesColliding(blockThreadsPositions[threadIdx.x], blockThreadsRadii[threadIdx.x],
-								shrdPositions[shIdx], shrdRadii[shIdx]);
-
-			//Testing for body - body collision
-			if ((blockThreadsMasses[threadIdx.x] >= shrdMasses[shIdx]) && intersect)
+			//if this is the last block and less bodies then max threads are present, shared mem access needs to be limited
+			innerLoopLimit = k == numBlocks - 1 ? numBodies % (THREADS_PER_BLOCK + 1) : THREADS_PER_BLOCK;
+			for (int shrdOffset = 0; shrdOffset < innerLoopLimit ; ++shrdOffset)
 			{
-				updatedBodyMass = /*threadBodyMass*/ blockThreadsMasses[threadIdx.x] + shrdMasses[shIdx];
-				updatedBodyRadius = /*threadBodyRadius*/ blockThreadsRadii[threadIdx.x] + shrdRadii[shIdx];
-//				shrdUpdatedMasses[threadIdx.x] = threadBodyMass + shrdMasses[shIdx];
-//				shrdUpdatedRadii[threadIdx.x] = threadBodyRadius + shrdRadii[shIdx];;//p1.Radius += p2.Radius;
-				continue;
-			} else if ((blockThreadsRadii[threadIdx.x] < shrdMasses[shIdx]) && intersect) {
-				//shrdUpdatedMasses[threadIdx.x] = 0.f;
-				updatedBodyMass = 0.f;
-				continue;
+				//If globalBodyIdx and globalThreadIdx are equal, we want to ensure that bodies are still compared in shared mem, hence the skip
+				if (skip && globalBodyIdx == globalThreadIdx)
+				{
+					skip = false;
+					continue;
+				}
+
+				//Ensuring threads loop and read every shared location concurrently
+				shIdx = (threadIdx.x + shrdOffset) % innerLoopLimit;
+
+	//			bool intersect = areParticlesColliding(threadBodyPosition, threadBodyRadius,
+	//					shrdPositions[shIdx], shrdRadii[shIdx]);
+
+				bool intersect = areParticlesColliding(blockThreadsPositions[threadIdx.x], blockThreadsRadii[threadIdx.x],
+									shrdPositions[shIdx], shrdRadii[shIdx]);
+
+				//Testing for body - body collision
+				if ((blockThreadsMasses[threadIdx.x] >= shrdMasses[shIdx]) && intersect)
+				{
+					updatedBodyMass = /*threadBodyMass*/ blockThreadsMasses[threadIdx.x] + shrdMasses[shIdx];
+					updatedBodyRadius = /*threadBodyRadius*/ blockThreadsRadii[threadIdx.x] + shrdRadii[shIdx];
+	//				shrdUpdatedMasses[threadIdx.x] = threadBodyMass + shrdMasses[shIdx];
+	//				shrdUpdatedRadii[threadIdx.x] = threadBodyRadius + shrdRadii[shIdx];;//p1.Radius += p2.Radius;
+					continue;
+				} else if ((blockThreadsRadii[threadIdx.x] < shrdMasses[shIdx]) && intersect) {
+					//shrdUpdatedMasses[threadIdx.x] = 0.f;
+					updatedBodyMass = 0.f;
+					continue;
+				}
+
+				// Compute direction vector
+				direction = shrdPositions[shIdx] - blockThreadsPositions[threadIdx.x];
+				//printf("Direction: (%.4f, %.4f)\n", direction.X, direction.Y);
+				distance = direction.length();
+
+	#ifndef NDEBUG
+				assert(distance != 0);
+	#endif
+				// Accumulate force
+				Vec2f temp = (direction * shrdMasses[shIdx]) / (distance * distance * distance);
+				force += temp;//(direction * shrdMasses[shIdx]) / (distance * distance * distance);
+				printf("[%d] to [%d]\ndirection: (%.3f,%.3f)\ndistance: %.3f\nforce: (%.3f, %.3f)\n shrdMass: %.3f\nUpdatedForce: (%.3f, %.3f)\n",
+						globalThreadIdx, shIdx, direction.X, direction.Y, distance, temp.X, temp.Y, shrdMasses[shIdx], force.X, force.Y
+						);
 			}
-
-			// Compute direction vector
-			direction = shrdPositions[shIdx] - blockThreadsPositions[threadIdx.x];/*threadBodyPosition*/;
-			distance = direction.length();
-
-#ifndef NDEBUG
-			assert(distance != 0);
-#endif
-			// Accumulate force
-			force += (direction * shrdMasses[shIdx]) / (distance * distance * distance);
-		}
+			__syncthreads();
+		};
 		__syncthreads();
-	};
-	__syncthreads();
-	updatedMasses[globalThreadIdx] = updatedBodyMass;//shrdUpdatedMasses[threadIdx.x];
-	updatedRadii[globalThreadIdx] = updatedBodyRadius;//shrdUpdatedRadii[threadIdx.x];
+		updatedMasses[globalThreadIdx] = updatedBodyMass;//shrdUpdatedMasses[threadIdx.x];
+		updatedRadii[globalThreadIdx] = updatedBodyRadius;//shrdUpdatedRadii[threadIdx.x];
 
-	// Compute acceleration for body
-	acceleration = force * GRAV_CONSTANT;
-	shrdUpdatedVelocities[threadIdx.x] = acceleration * timestep;
+		// Compute acceleration for body
+		acceleration = force * GRAV_CONSTANT;
+		printf("[%d] acceleration: (%.6f, %.6f)\n", globalThreadIdx, acceleration.X, acceleration.Y);
+		shrdUpdatedVelocities[threadIdx.x] = acceleration * timestep;
 
-	//Border collision
-	if (blockThreadsPositions[threadIdx.x].X + (acceleration.X * timestep) > fieldWidth - blockThreadsRadii[threadIdx.x]
-			|| blockThreadsPositions[threadIdx.x].X + (acceleration.X * timestep) < -fieldWidth + blockThreadsRadii[threadIdx.x])
-		shrdUpdatedVelocities[threadIdx.x].X *= -1;
-		//updatedVelocities[globalThreadIdx].X *= -1;
-	if (blockThreadsPositions[threadIdx.x].Y + (acceleration.Y * timestep) > fieldHeight - blockThreadsRadii[threadIdx.x]
-			|| blockThreadsPositions[threadIdx.x].Y + (acceleration.Y * timestep) < -fieldHeight + blockThreadsRadii[threadIdx.x])
-		shrdUpdatedVelocities[threadIdx.x].Y *= -1;
-		//updatedVelocities[globalThreadIdx].Y *= -1;
+		//Border collision
+		if (blockThreadsPositions[threadIdx.x].X + (acceleration.X * timestep) > fieldWidth - blockThreadsRadii[threadIdx.x]
+				|| blockThreadsPositions[threadIdx.x].X + (acceleration.X * timestep) < -fieldWidth + blockThreadsRadii[threadIdx.x])
+			blockThreadsVelocities[threadIdx.x].X *= -1;
+			//shrdUpdatedVelocities[threadIdx.x].X *= -1;
+			//updatedVelocities[globalThreadIdx].X *= -1;
+		if (blockThreadsPositions[threadIdx.x].Y + (acceleration.Y * timestep) > fieldHeight - blockThreadsRadii[threadIdx.x]
+				|| blockThreadsPositions[threadIdx.x].Y + (acceleration.Y * timestep) < -fieldHeight + blockThreadsRadii[threadIdx.x])
+			blockThreadsVelocities[threadIdx.x].Y *= -1;
+			//shrdUpdatedVelocities[threadIdx.x].Y *= -1;
+			//updatedVelocities[globalThreadIdx].Y *= -1;
 
-	updatedVelocities[globalThreadIdx] = shrdUpdatedVelocities[threadIdx.x];
+		printf("[%d] updatedMass: %.3f\nupdatedRadius: %.3f\nVel: (%.3f, %.3f)\nupdatedVel: (%.3f, %.3f)\n",
+				globalThreadIdx, updatedBodyMass, updatedBodyRadius,
+				blockThreadsVelocities[threadIdx.x].X, blockThreadsVelocities[threadIdx.x].Y,
+				shrdUpdatedVelocities[threadIdx.x].X, shrdUpdatedVelocities[threadIdx.x].Y);
+		updatedVelocities[globalThreadIdx] = blockThreadsVelocities[threadIdx.x] + shrdUpdatedVelocities[threadIdx.x];
+	}
 	/*printf("Mass (p%d) : %.5f\n", (int)j, p1.Mass);
 	 printf("Mass (p%d) : %.5f\n", (int)k, p2.Mass);
 	 printf("Direction (p%d to p%d) : %.2f, %.2f\n", (int)j, (int)k,direction.X, direction.Y);
@@ -306,6 +347,7 @@ __global__ void MoveBodies(void* bodyData, float* updatedMasses, Vec2f* updatedV
 		positions[j] += updatedVelocities[j] * p_deltaT;//p_bodies[j].Velocity * p_deltaT;
 		masses[j] = updated_masses[j];
 		radii[j] = updatedRadii[j];
+
 	}
 }
 
@@ -325,7 +367,7 @@ __global__ void generateImage(void* bodyData, int numBodies, char* imgData, int 
 	//float* shrdMasses = (float*) &shrdPositions[THREADS_PER_BLOCK];
 
 	shrdPositions[threadIdx.x] = positions[i];
-	shrdRadii[threadIdx.x] = radii[i];
+	shrdRadii[threadIdx.x] = (radii[i] * width)/fieldWidth;
 
 	//printf("hi\n");
 
@@ -406,7 +448,7 @@ int main(int argc, char **argv) {
 	std::cout<<"=====================\n";
 	//exit(0);
 
-	const int particleCount = config.particleCount;//std::stoi(argv[1]);
+	const int particleCount = 3;//config.particleCount;//std::stoi(argv[1]);
 	const int maxIteration = config.totalIterations;//std::stoi(argv[2]);
 	const int imageEveryIteration = config.save_Image_Every_Xth_Iteration;//std::stoi(argv[3]);
 	const float timestep = config.timestep;
@@ -451,24 +493,38 @@ int main(int argc, char **argv) {
 	printf("Bodies: %d\n", bData.numBodies);
 
 	jbutil::randgen gen;
-	gen.seed(42);
+	gen.seed(43);
 
 	//Randomly generating body data
-	for (int bodyIndex = 0; bodyIndex < particleCount; ++bodyIndex)
-	{
-		 x = gen.fval(0, doubleFieldWidth) - fieldWidth;
-		 y = gen.fval(0, doubleFieldHeight) - fieldHeight;
-		 m = gen.fval(minBodyMass, maxBodyMass);
-		 r = gen.fval(config.minRadius, config.maxRadius);
-		 //printf("Base: %p\n Offset: %p\n", &bData.Positions, &bData.Velocities);
-		 bData.Positions[bodyIndex] = Vec2f(x, y);
-		 bData.Velocities[bodyIndex] = Vec2f(0.f, 0.f);
-		 bData.Masses[bodyIndex] = m;
-		 bData.Radii[bodyIndex] = r;
-		 //p = Particle(Vec2f(x,y), Vec2f(0.0,0.0), m, r);
-		 //bodies.push_back(p);
-		 //updatedMasses.push_back(p.Mass);
-	}
+//	for (int bodyIndex = 0; bodyIndex < particleCount; ++bodyIndex)
+//	{
+//		 x = gen.fval(0, doubleFieldWidth) - fieldWidth;
+//		 y = gen.fval(0, doubleFieldHeight) - fieldHeight;
+//		 m = gen.fval(minBodyMass, maxBodyMass);
+//		 r = gen.fval(config.minRadius, config.maxRadius);
+//		 //printf("Base: %p\n Offset: %p\n", &bData.Positions, &bData.Velocities);
+//		 bData.Positions[bodyIndex] = Vec2f(x, y);
+//		 bData.Velocities[bodyIndex] = Vec2f(0.f, 0.f);
+//		 bData.Masses[bodyIndex] = m;
+//		 bData.Radii[bodyIndex] = r;
+//		 //p = Particle(Vec2f(x,y), Vec2f(0.0,0.0), m, r);
+//		 //bodies.push_back(p);
+//		 //updatedMasses.push_back(p.Mass);
+//	}
+	 bData.Positions[0] = Vec2f(-300000, 0);
+	 bData.Positions[1] = Vec2f(0.f, 0.f);
+	 bData.Positions[2] = Vec2f(40000.f, 40000.f);
+	 bData.Velocities[0] = Vec2f(0.f, -3701.491f); //3701.491
+	 bData.Velocities[1] = Vec2f(0.f, 0.f);
+	 bData.Velocities[2] = Vec2f(0.f ,0.f);
+	 bData.Masses[0] = 7.35e22f;
+	 bData.Masses[1] = 5.97e24f;
+	 bData.Masses[2] = 1.f;
+	 bData.Radii[0] = 1737.1f;
+	 bData.Radii[1] = 6371.0f;
+	 bData.Radii[2] = 1.f;
+
+	 //bData.printData();
 
 	//Particle p3(Vec2f(0,0), Vec2f(0,0), 1.989e20, 5);
 	//bodies.push_back(p3);
@@ -505,27 +561,7 @@ int main(int argc, char **argv) {
 	BodiesData newData;
 	int numBodies = particleCount;
 	int newNumBodies;
-
-//	std::vector<float> updatedMasses(numBodies);
-//	std::vector<float> updatedRadii(numBodies);
-//
-//
-//	//cudaMalloc((void **) &d_bodies, bodies.size() * sizeof(Particle));
-//	cudaMalloc((void **) &d_updatedMasses, numBodies * sizeof(float));
-//	cudaMalloc((void **) &d_updatedRadii, numBodies * sizeof(float));
-//	cudaMalloc((void **) &d_updatedVelocities, numBodies * sizeof(Vec2f));
-//
-//
-//
-//	for (int i = 0; i < numBodies; ++i) {
-//		updatedMasses[i] = bData.Masses[i];
-//		updatedRadii[i] = bData.Radii[i];
-//		//printf("Mass: %.4f \nRadius: %.4f\n", body.Mass, body.Radius);
-//	}
-//
-//	bData.uploadToDevice();
-//	cudaMemcpy(d_updatedMasses, updatedMasses.data(), updatedMasses.size() * sizeof(float), cudaMemcpyHostToDevice);
-//	cudaMemcpy(d_updatedRadii, updatedRadii.data(), updatedRadii.size() * sizeof(float), cudaMemcpyHostToDevice);
+	size_t sharedMemSize = threadsPerBlock * ((2 * (sizeof(Vec2f) + sizeof(float) + sizeof(float))) + 2 * sizeof(Vec2f));
 	for (int run = 0; run < MAX_RUNS; ++run) {
 		for (int iteration = 0; iteration < maxIteration; ++iteration)
 		{
@@ -533,6 +569,9 @@ int main(int argc, char **argv) {
 			//std::vector<Particle> newBodies;
 			std::vector<float> updatedMasses(numBodies);
 			std::vector<float> updatedRadii(numBodies);
+
+			//printf("Bodies: %d\n", numBodies);
+			//bData.printData();
 
 
 			//cudaMalloc((void **) &d_bodies, bodies.size() * sizeof(Particle));
@@ -552,6 +591,7 @@ int main(int argc, char **argv) {
 
 			//Since bodies can decrease, we need to ensure that at least 1 block is always present
 			blocks = numBodies < threadsPerBlock ? 1 : numBodies / threadsPerBlock;
+			printf("BLOCKS: %d\n", blocks);
 			//blocks = numBodies / threadsPerBlock;
 
 			//Copying data over to device
@@ -562,8 +602,8 @@ int main(int argc, char **argv) {
 			//resetUpdatedMasses<<<1,1>>>();
 			//CUDA_SYNC_CHECK();
 			//Calculating movement
-			ComputeForces<<<blocks, threadsPerBlock, threadsPerBlock * ((2 * (sizeof(Vec2f) + sizeof(float) + sizeof(float))) + sizeof(Vec2f))>>>
-					(bData.d_contiguousData, d_updatedMasses, d_updatedVelocities, d_updatedRadii, numBodies,timestep, fieldWidth, fieldHeight);
+			ComputeForces<<<blocks, threadsPerBlock, sharedMemSize>>>
+					(bData.d_contiguousData, d_updatedMasses, d_updatedVelocities, d_updatedRadii, numBodies,timestep, fieldWidth, fieldHeight, blocks);
 			//CUDA_SYNC_CHECK();
 			MoveBodies<<<blocks, threadsPerBlock>>>(bData.d_contiguousData ,d_updatedMasses, d_updatedVelocities, d_updatedRadii, bData.numBodies, timestep);
 			//CUDA_SYNC_CHECK();
@@ -625,11 +665,12 @@ int main(int argc, char **argv) {
 				cudaFree(d_imgData);
 				delete[] imgData;
 			}
-		}
 			CUDA_SYNC_CHECK();
 			cudaFree(d_updatedMasses);
 			cudaFree(d_updatedRadii);
 			cudaFree(d_updatedVelocities);
+			printf("========================\n");
+		}
 			cudaDeviceReset();
 	}
 	return 0;
