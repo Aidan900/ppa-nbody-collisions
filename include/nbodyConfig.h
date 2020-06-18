@@ -10,6 +10,7 @@ struct ConfigData {
 	float maxRandBodyMass;
 	float minRadius;
 	float maxRadius;
+	float growthRate;
 	int imgWidth;
 	int imgHeight;
 	int fieldWidth;
@@ -203,7 +204,22 @@ ConfigData parseConfigFile(const std::string& filepath) {
 			std::cout << "imagePath=" << imagePath
 					<< std::endl;
 			conf.imagePath = imagePath;
-		} else {
+		}
+		else if (variableName.compare("radiusGrowthRate") == 0)
+		{
+			float growthRate;
+			try {
+				growthRate = std::stof(line.substr(delimPos + 1));
+			} catch (std::exception const &e) {
+				std::cout << "growthRate invalid value: " << e.what()
+						<< std::endl;
+				exit(1);
+			}
+			std::cout << "growthRate=" << growthRate
+					<< std::endl;
+			conf.growthRate = growthRate;
+		}
+		else {
 			std::cout << "Invalid variable: " << variableName << std::endl;
 		}
 	}

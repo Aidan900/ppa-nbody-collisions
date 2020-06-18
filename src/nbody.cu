@@ -148,7 +148,7 @@ __device__ inline bool areParticlesColliding(const Vec2f& p0, const float r0, co
  */
 //Particle* d_bodies, float* updatedMasses, Vec2f* updatedVelocities, float* updatedRadii,
 __global__ void /*__launch_bounds__(THREADS_PER_BLOCK, 2)*/ ComputeForces(void* bodyData, float* updatedMasses, Vec2f* updatedVelocities,
-		float* updatedRadii, int bodiesNum, float timestep, int fieldWidth, int fieldHeight, int numBlocks)
+		float* updatedRadii, int bodiesNum, float timestep, int fieldWidth, int fieldHeight, int numBlocks, float growthRate)
 {
 	//Particle* bodies = d_bodies;//deviceBodies;
 	int globalThreadIdx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -232,7 +232,7 @@ __global__ void /*__launch_bounds__(THREADS_PER_BLOCK, 2)*/ ComputeForces(void* 
 					//printf("INTERSECTION TYPE 1: [%d] with [%d]\n", globalThreadIdx, shIdx);
 					//printf("[%d] Previous radius: %.3f (shared: %.3f)\n", globalThreadIdx, updatedBodyRadius, shrdRadii[shIdx]);
 					updatedBodyMass += shrdMasses[shIdx];
-					updatedBodyRadius += shrdRadii[shIdx] * 0.1f;
+					updatedBodyRadius += shrdRadii[shIdx] * growthRate;
 					//printf("[%d] Updated radius: %.3f\n", globalThreadIdx, updatedBodyRadius);
 	//				shrdUpdatedMasses[threadIdx.x] = threadBodyMass + shrdMasses[shIdx];
 	//				shrdUpdatedRadii[threadIdx.x] = threadBodyRadius + shrdRadii[shIdx];;//p1.Radius += p2.Radius;
@@ -537,13 +537,13 @@ int main(int argc, char **argv) {
 
 	cudaStreamCreate(&calculationStream);
 	cudaStreamCreate(&imageStream);
+	std::vector<float> updatedMasses(numBodies);
+	std::vector<float> updatedRadii(numBodies);
 	for (int run = 0; run < MAX_RUNS; ++run) {
 		for (int iteration = 0; iteration < maxIteration; ++iteration)
 		{
 			//printf("Iteration: %d\n", iteration);
 			//std::vector<Particle> newBodies;
-			std::vector<float> updatedMasses(numBodies);
-			std::vector<float> updatedRadii(numBodies);
 
 			//printf("Bodies: %d\n", numBodies);
 			//bData.printData();
@@ -552,7 +552,7 @@ int main(int argc, char **argv) {
 			//cudaMalloc((void **) &d_bodies, bodies.size() * sizeof(Particle));
 			cudaMalloc((void **) &d_updatedMasses, numBodies * sizeof(float));
 			cudaMalloc((void **) &d_updatedRadii, numBodies * sizeof(float));
-			cudaMalloc((void **) &d_updatedVelocities, numBodies * sizeof(Vec2f));
+			//cudaMalloc((void **) &d_updatedVelocities, numBodies * sizeof(Vec2f));
 
 
 
@@ -574,12 +574,10 @@ int main(int argc, char **argv) {
 			cudaMemcpyAsync(d_updatedMasses, updatedMasses.data(), updatedMasses.size() * sizeof(float), cudaMemcpyHostToDevice, calculationStream);
 			cudaMemcpyAsync(d_updatedRadii, updatedRadii.data(), updatedRadii.size() * sizeof(float), cudaMemcpyHostToDevice, calculationStream);
 
-//			cudaMemcpy(d_updatedMasses, updatedMasses.data(), updatedMasses.size() * sizeof(float), cudaMemcpyHostToDevice);
-//			cudaMemcpy(d_updatedRadii, updatedRadii.data(), updatedRadii.size() * sizeof(float), cudaMemcpyHostToDevice);
 
 			//Calculating movement
 			ComputeForces<<<blocks, threadsPerBlock, sharedMemSize, calculationStream>>>
-					(bData.d_contiguousData, d_updatedMasses, d_updatedVelocities, d_updatedRadii, numBodies,timestep, fieldWidth, fieldHeight, blocks);
+					(bData.d_contiguousData, d_updatedMasses, d_updatedVelocities, d_updatedRadii, numBodies, timestep, fieldWidth, fieldHeight, blocks, config.growthRate);
 			//CUDA_SYNC_CHECK();
 			MoveBodies<<<blocks, threadsPerBlock, 0, calculationStream>>>(bData.d_contiguousData ,d_updatedMasses, d_updatedVelocities, d_updatedRadii, bData.numBodies, timestep);
 			//CUDA_SYNC_CHECK();
@@ -623,7 +621,7 @@ int main(int argc, char **argv) {
 				cudaStreamSynchronize(imageStream);
 				imgOut.str(std::string());
 				imgOut << config.imagePath << "/iteration_" << iteration - 1 << ".ppm";
-				//printf("Saving Iteration %d\n", iteration-1);
+				printf("Saving Iteration %d\n", iteration-1);
 				saveImageToDisk(imgOut.str(), imgData, imgWidth, imgHeight);
 				cudaFree(d_imgData);
 				delete[] imgData;
@@ -655,7 +653,9 @@ int main(int argc, char **argv) {
 			}
 			cudaFree(d_updatedMasses);
 			cudaFree(d_updatedRadii);
-			cudaFree(d_updatedVelocities);
+			updatedMasses.clear();
+			updatedRadii.clear();
+			//cudaFree(d_updatedVelocities);
 			//printf("++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 		}
 			CUDA_SYNC_CHECK();
