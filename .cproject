@@ -110,12 +110,10 @@
 			</storageModule>
 			<storageModule moduleId="com.nvidia.cuda.ide.build.project.ICudaProjectConfiguration">
 				<executable devicelink="false">
-					<sass major="3" minor="5"/>
 					<sass major="5" minor="0"/>
-					<ptx major="3" minor="5"/>
 					<ptx major="5" minor="0"/>
 				</executable>
-				<editor-arch major="3" minor="5"/>
+				<editor-arch major="5" minor="0"/>
 			</storageModule>
 			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
 		</cconfiguration>
@@ -124,7 +122,14 @@
 		<project id="acau0033-ppa2-nbodycollision.com.nvidia.cuda.ide.on_path.exe.122974997" name="Executable" projectType="com.nvidia.cuda.ide.on_path.exe"/>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
-	<storageModule moduleId="refreshScope"/>
+	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="Debug">
+			<resource resourceType="PROJECT" workspacePath="/acau0033-ppa2-nbodycollision"/>
+		</configuration>
+		<configuration configurationName="Release">
+			<resource resourceType="PROJECT" workspacePath="/acau0033-ppa2-nbodycollision"/>
+		</configuration>
+	</storageModule>
 	<storageModule moduleId="scannerConfiguration">
 		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
 		<scannerConfigBuildInfo instanceId="com.nvidia.cuda.ide.on_path.configuration.debug.1459583113;com.nvidia.cuda.ide.on_path.configuration.debug.1459583113.;nvcc.compiler.base.2141317264;nvcc.compiler.input.c.167606477">
@@ -147,4 +152,5 @@
 		</scannerConfigBuildInfo>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
+	<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 </cproject>
